@@ -52,6 +52,20 @@ export default {
 					DEFAULT: 'hsl(var(--card))',
 					foreground: 'hsl(var(--card-foreground))'
 				},
+				entry: {
+					DEFAULT: 'hsl(var(--entry))',
+					foreground: 'hsl(var(--entry-foreground))',
+					muted: 'hsl(var(--entry-muted))'
+				},
+				exit: {
+					DEFAULT: 'hsl(var(--exit))',
+					foreground: 'hsl(var(--exit-foreground))',
+					muted: 'hsl(var(--exit-muted))'
+				},
+				neutral: {
+					DEFAULT: 'hsl(var(--neutral))',
+					foreground: 'hsl(var(--neutral-foreground))'
+				},
 				sidebar: {
 					DEFAULT: 'hsl(var(--sidebar-background))',
 					foreground: 'hsl(var(--sidebar-foreground))',
