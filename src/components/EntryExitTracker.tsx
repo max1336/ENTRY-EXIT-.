@@ -165,6 +165,7 @@ const EntryExitTracker = () => {
 
   const todayEntryCount = todayEntries.filter(e => e.type === 'entry').length;
   const todayExitCount = todayEntries.filter(e => e.type === 'exit').length;
+  const todayNetCount = todayEntryCount - todayExitCount;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4">
@@ -180,8 +181,8 @@ const EntryExitTracker = () => {
           <Card className="p-6 bg-card border shadow-sm">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Current Count</p>
-                <p className="text-3xl font-bold text-foreground">{currentCount}</p>
+                <p className="text-sm font-medium text-muted-foreground">Today's Net Count</p>
+                <p className="text-3xl font-bold text-foreground">{todayNetCount}</p>
               </div>
               <Users className="h-8 w-8 text-neutral" />
             </div>
