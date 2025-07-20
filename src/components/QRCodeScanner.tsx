@@ -119,6 +119,7 @@ const QRCodeScanner = ({ onScanSuccess, isOpen, onClose }: QRScannerProps) => {
   };
 
   const stopScanner = () => {
+    console.log('Stopping QR scanner...');
     if (scannerRef.current) {
       scannerRef.current.stop();
       scannerRef.current.destroy();
@@ -128,6 +129,7 @@ const QRCodeScanner = ({ onScanSuccess, isOpen, onClose }: QRScannerProps) => {
   };
 
   const handleClose = () => {
+    console.log('Closing QR scanner...');
     stopScanner();
     onClose();
   };
