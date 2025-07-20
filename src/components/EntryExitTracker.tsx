@@ -3,6 +3,9 @@ import { LogIn, LogOut, Clock, Users, TrendingUp, Scan, QrCode } from 'lucide-re
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import PersonManager, { Person } from './PersonManager';
@@ -15,6 +18,7 @@ interface Entry {
   person?: {
     id: string;
     name: string;
+    enrollmentNo?: string;
   };
 }
 
@@ -23,6 +27,9 @@ const EntryExitTracker = () => {
   const [currentCount, setCurrentCount] = useState(0);
   const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
   const [currentPersonInside, setCurrentPersonInside] = useState<Set<string>>(new Set());
+  const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
+  const [isManualExitOpen, setIsManualExitOpen] = useState(false);
+  const [manualEntryForm, setManualEntryForm] = useState({ name: '', enrollmentNo: '' });
   const { toast } = useToast();
 
   // Load entries from localStorage on component mount
@@ -67,7 +74,7 @@ const EntryExitTracker = () => {
     localStorage.setItem('entryExitData', JSON.stringify(entries));
   }, [entries]);
 
-  const addEntry = (type: 'entry' | 'exit', person?: { id: string; name: string }) => {
+  const addEntry = (type: 'entry' | 'exit', person?: { id: string; name: string; enrollmentNo?: string }) => {
     const newEntry: Entry = {
       id: Date.now().toString(),
       type,
@@ -124,6 +131,21 @@ const EntryExitTracker = () => {
     const actionType = isInside ? 'exit' : 'entry';
     
     addEntry(actionType, person);
+  };
+
+  const handleManualEntry = (type: 'entry' | 'exit') => {
+    const person = manualEntryForm.name.trim() 
+      ? { 
+          id: `manual_${Date.now()}`, 
+          name: manualEntryForm.name.trim(),
+          enrollmentNo: manualEntryForm.enrollmentNo.trim() || undefined
+        }
+      : undefined;
+    
+    addEntry(type, person);
+    setManualEntryForm({ name: '', enrollmentNo: '' });
+    setIsManualEntryOpen(false);
+    setIsManualExitOpen(false);
   };
 
   const clearAllEntries = () => {
@@ -225,29 +247,119 @@ const EntryExitTracker = () => {
             <Card className="p-6">
               <h2 className="text-xl font-semibold text-foreground mb-4">Manual Entry/Exit</h2>
               <p className="text-muted-foreground mb-6">
-                Record anonymous entries and exits without QR codes
+                Record entries and exits with optional person details
               </p>
               
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Button
-                  onClick={() => addEntry('entry')}
-                  variant="entry"
-                  size="lg"
-                  className="text-lg px-8 py-6 h-auto"
-                >
-                  <LogIn className="w-6 h-6 mr-2" />
-                  Record Entry
-                </Button>
+                <Dialog open={isManualEntryOpen} onOpenChange={setIsManualEntryOpen}>
+                  <DialogTrigger asChild>
+                    <Button
+                      variant="entry"
+                      size="lg"
+                      className="text-lg px-8 py-6 h-auto"
+                    >
+                      <LogIn className="w-6 h-6 mr-2" />
+                      Record Entry
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>Record Entry</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="entry-name">Name</Label>
+                        <Input
+                          id="entry-name"
+                          placeholder="Enter person's name (optional)"
+                          value={manualEntryForm.name}
+                          onChange={(e) => setManualEntryForm(prev => ({ ...prev, name: e.target.value }))}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="entry-enrollment">Enrollment No</Label>
+                        <Input
+                          id="entry-enrollment"
+                          placeholder="Enter enrollment number (optional)"
+                          value={manualEntryForm.enrollmentNo}
+                          onChange={(e) => setManualEntryForm(prev => ({ ...prev, enrollmentNo: e.target.value }))}
+                        />
+                      </div>
+                      <div className="flex gap-2 pt-4">
+                        <Button
+                          onClick={() => handleManualEntry('entry')}
+                          variant="entry"
+                          className="flex-1"
+                        >
+                          <LogIn className="w-4 h-4 mr-2" />
+                          Record Entry
+                        </Button>
+                        <Button
+                          onClick={() => setIsManualEntryOpen(false)}
+                          variant="outline"
+                          className="flex-1"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
                 
-                <Button
-                  onClick={() => addEntry('exit')}
-                  variant="exit"
-                  size="lg"
-                  className="text-lg px-8 py-6 h-auto"
-                >
-                  <LogOut className="w-6 h-6 mr-2" />
-                  Record Exit
-                </Button>
+                <Dialog open={isManualExitOpen} onOpenChange={setIsManualExitOpen}>
+                  <DialogTrigger asChild>
+                    <Button
+                      variant="exit"
+                      size="lg"
+                      className="text-lg px-8 py-6 h-auto"
+                    >
+                      <LogOut className="w-6 h-6 mr-2" />
+                      Record Exit
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>Record Exit</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="exit-name">Name</Label>
+                        <Input
+                          id="exit-name"
+                          placeholder="Enter person's name (optional)"
+                          value={manualEntryForm.name}
+                          onChange={(e) => setManualEntryForm(prev => ({ ...prev, name: e.target.value }))}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="exit-enrollment">Enrollment No</Label>
+                        <Input
+                          id="exit-enrollment"
+                          placeholder="Enter enrollment number (optional)"
+                          value={manualEntryForm.enrollmentNo}
+                          onChange={(e) => setManualEntryForm(prev => ({ ...prev, enrollmentNo: e.target.value }))}
+                        />
+                      </div>
+                      <div className="flex gap-2 pt-4">
+                        <Button
+                          onClick={() => handleManualEntry('exit')}
+                          variant="exit"
+                          className="flex-1"
+                        >
+                          <LogOut className="w-4 h-4 mr-2" />
+                          Record Exit
+                        </Button>
+                        <Button
+                          onClick={() => setIsManualExitOpen(false)}
+                          variant="outline"
+                          className="flex-1"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </div>
             </Card>
           </TabsContent>
