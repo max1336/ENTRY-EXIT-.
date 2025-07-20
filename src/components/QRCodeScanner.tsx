@@ -33,8 +33,26 @@ const QRCodeScanner = ({ onScanSuccess, isOpen, onClose }: QRScannerProps) => {
     try {
       if (!videoRef.current) return;
 
+      console.log('Starting QR scanner...');
+      
+      // Request camera permissions first
+      try {
+        await navigator.mediaDevices.getUserMedia({ video: true });
+        console.log('Camera permissions granted');
+      } catch (permissionError) {
+        console.error('Camera permission denied:', permissionError);
+        toast({
+          title: "Camera Permission Required",
+          description: "Please allow camera access to scan QR codes",
+          variant: "destructive"
+        });
+        setHasCamera(false);
+        return;
+      }
+
       // Check if camera is available
       const hasCamera = await QrScanner.hasCamera();
+      console.log('Camera available:', hasCamera);
       if (!hasCamera) {
         setHasCamera(false);
         toast({
