@@ -24,19 +24,26 @@ const QRCodeScanner = ({ onScanSuccess, isOpen, onClose }: QRScannerProps) => {
   const { toast } = useToast();
 
   useEffect(() => {
-    if (isOpen && videoRef.current) {
+    if (isOpen && !showEntryExitDialog) {
       console.log('Dialog opened, starting scanner...');
-      startScanner();
+      // Add a small delay to ensure video element is ready
+      setTimeout(() => {
+        if (videoRef.current && isOpen && !showEntryExitDialog) {
+          startScanner();
+        }
+      }, 100);
     } else if (!isOpen) {
       console.log('Dialog closed, stopping scanner...');
       stopScanner();
+      setShowEntryExitDialog(false);
+      setScannedPersonData(null);
     }
 
     return () => {
       console.log('Component unmounting, cleaning up...');
       stopScanner();
     };
-  }, [isOpen]);
+  }, [isOpen, showEntryExitDialog]);
 
   const startScanner = async () => {
     if (isInitializing) {
@@ -254,7 +261,11 @@ const QRCodeScanner = ({ onScanSuccess, isOpen, onClose }: QRScannerProps) => {
                   variant="outline" 
                   onClick={() => {
                     setHasCamera(true);
-                    startScanner();
+                    setIsScanning(false);
+                    setIsInitializing(false);
+                    setTimeout(() => {
+                      startScanner();
+                    }, 100);
                   }}
                   className="mt-4"
                 >
