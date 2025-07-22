@@ -126,9 +126,8 @@ const EntryExitTracker = () => {
   const handleQRScanSuccess = (personData: any) => {
     const person = { id: personData.id, name: personData.name };
     
-    // Determine if this person is currently inside
-    const isInside = currentPersonInside.has(person.id);
-    const actionType = isInside ? 'exit' : 'entry';
+    // Use the type selected by the user in the QR scanner dialog
+    const actionType = personData.type || 'entry';
     
     addEntry(actionType, person);
   };
