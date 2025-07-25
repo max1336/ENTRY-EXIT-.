@@ -4,28 +4,38 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { LogOut, User, Shield } from 'lucide-react';
 import EntryExitTracker from '@/components/EntryExitTracker';
+import { supabase } from '@/lib/supabase';
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const [username, setUsername] = useState('');
+  const [userEmail, setUserEmail] = useState('');
 
   useEffect(() => {
-    const isAuthenticated = localStorage.getItem('isAuthenticated');
-    const savedUsername = localStorage.getItem('username');
-    
-    if (!isAuthenticated) {
-      navigate('/');
-      return;
-    }
-    
-    if (savedUsername) {
-      setUsername(savedUsername);
-    }
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        navigate('/');
+        return;
+      }
+      
+      setUserEmail(session.user.email || '');
+    };
+
+    checkAuth();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || !session) {
+        navigate('/');
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, [navigate]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('isAuthenticated');
-    localStorage.removeItem('username');
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     navigate('/');
   };
 
@@ -47,7 +57,7 @@ const Dashboard = () => {
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <User className="w-4 h-4" />
-                <span>Welcome, {username}</span>
+                <span>Welcome, {userEmail}</span>
               </div>
               <Button
                 variant="outline"

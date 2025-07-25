@@ -7,13 +7,16 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import QRCode from 'qrcode';
+import { supabase } from '@/lib/supabase';
 
 export interface Person {
   id: string;
   name: string;
+  enrollmentNo?: string;
   email?: string;
-  qrCode: string;
-  createdAt: Date;
+  phone?: string;
+  qrCodeData?: string;
+  createdAt?: Date;
 }
 
 interface PersonManagerProps {
@@ -25,26 +28,55 @@ const PersonManager = ({ onPersonAdded }: PersonManagerProps) => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [newPersonName, setNewPersonName] = useState('');
   const [newPersonEmail, setNewPersonEmail] = useState('');
+  const [newPersonEnrollment, setNewPersonEnrollment] = useState('');
+  const [newPersonPhone, setNewPersonPhone] = useState('');
   const [showQRCodes, setShowQRCodes] = useState<{[key: string]: boolean}>({});
+  const [userId, setUserId] = useState<string>('');
   const { toast } = useToast();
 
-  // Load people from localStorage
+  // Load people from Supabase
   useEffect(() => {
-    const savedPeople = localStorage.getItem('registeredPeople');
-    if (savedPeople) {
-      const parsed = JSON.parse(savedPeople);
-      const peopleWithDates = parsed.map((person: any) => ({
-        ...person,
-        createdAt: new Date(person.createdAt)
-      }));
-      setPeople(peopleWithDates);
-    }
+    const initializeUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        setUserId(session.user.id);
+        await loadPeople(session.user.id);
+      }
+    };
+
+    initializeUser();
   }, []);
 
-  // Save people to localStorage
-  useEffect(() => {
-    localStorage.setItem('registeredPeople', JSON.stringify(people));
-  }, [people]);
+  const loadPeople = async (currentUserId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('people')
+        .select('*')
+        .eq('user_id', currentUserId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const peopleData = data.map((person: any) => ({
+        id: person.id,
+        name: person.name,
+        enrollmentNo: person.enrollment_no,
+        email: person.email,
+        phone: person.phone,
+        qrCodeData: person.qr_code_data,
+        createdAt: new Date(person.created_at)
+      }));
+
+      setPeople(peopleData);
+    } catch (error) {
+      console.error('Error loading people:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load people from database',
+        variant: 'destructive',
+      });
+    }
+  };
 
   const generatePersonId = () => {
     return `person_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -60,14 +92,15 @@ const PersonManager = ({ onPersonAdded }: PersonManagerProps) => {
       return;
     }
 
-    const personId = generatePersonId();
-    const personData = {
-      id: personId,
-      name: newPersonName.trim(),
-      timestamp: new Date().toISOString()
-    };
-
     try {
+      const personId = generatePersonId();
+      const personData = {
+        id: personId,
+        name: newPersonName.trim(),
+        enrollmentNo: newPersonEnrollment.trim() || undefined,
+        timestamp: new Date().toISOString()
+      };
+
       // Generate QR code containing person data
       const qrCodeDataURL = await QRCode.toDataURL(JSON.stringify(personData), {
         width: 300,
@@ -78,12 +111,31 @@ const PersonManager = ({ onPersonAdded }: PersonManagerProps) => {
         }
       });
 
+      // Save to Supabase
+      const { data, error } = await supabase
+        .from('people')
+        .insert({
+          id: personId,
+          name: newPersonName.trim(),
+          enrollment_no: newPersonEnrollment.trim() || null,
+          email: newPersonEmail.trim() || null,
+          phone: newPersonPhone.trim() || null,
+          qr_code_data: qrCodeDataURL,
+          user_id: userId
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
       const newPerson: Person = {
-        id: personId,
-        name: newPersonName.trim(),
-        email: newPersonEmail.trim() || undefined,
-        qrCode: qrCodeDataURL,
-        createdAt: new Date()
+        id: data.id,
+        name: data.name,
+        enrollmentNo: data.enrollment_no,
+        email: data.email,
+        phone: data.phone,
+        qrCodeData: data.qr_code_data,
+        createdAt: new Date(data.created_at)
       };
 
       setPeople(prev => [...prev, newPerson]);
@@ -91,6 +143,8 @@ const PersonManager = ({ onPersonAdded }: PersonManagerProps) => {
       
       setNewPersonName('');
       setNewPersonEmail('');
+      setNewPersonEnrollment('');
+      setNewPersonPhone('');
       setIsAddDialogOpen(false);
 
       toast({
@@ -98,28 +152,48 @@ const PersonManager = ({ onPersonAdded }: PersonManagerProps) => {
         description: `${newPerson.name} has been registered successfully`,
       });
     } catch (error) {
+      console.error('Error adding person:', error);
       toast({
         title: "Error",
-        description: "Failed to generate QR code",
+        description: "Failed to add person to database",
         variant: "destructive"
       });
     }
   };
 
-  const deletePerson = (personId: string) => {
-    const person = people.find(p => p.id === personId);
-    setPeople(prev => prev.filter(p => p.id !== personId));
-    toast({
-      title: "Person Removed",
-      description: `${person?.name} has been removed`,
-    });
+  const deletePerson = async (personId: string) => {
+    try {
+      const { error } = await supabase
+        .from('people')
+        .delete()
+        .eq('id', personId)
+        .eq('user_id', userId);
+
+      if (error) throw error;
+
+      const person = people.find(p => p.id === personId);
+      setPeople(prev => prev.filter(p => p.id !== personId));
+      toast({
+        title: "Person Removed",
+        description: `${person?.name} has been removed`,
+      });
+    } catch (error) {
+      console.error('Error deleting person:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete person from database',
+        variant: 'destructive',
+      });
+    }
   };
 
   const downloadQRCode = (person: Person) => {
-    const link = document.createElement('a');
-    link.download = `${person.name.replace(/\s+/g, '_')}_qr_code.png`;
-    link.href = person.qrCode;
-    link.click();
+    if (person.qrCodeData) {
+      const link = document.createElement('a');
+      link.download = `${person.name.replace(/\s+/g, '_')}_qr_code.png`;
+      link.href = person.qrCodeData;
+      link.click();
+    }
   };
 
   const toggleQRCodeVisibility = (personId: string) => {
@@ -155,6 +229,15 @@ const PersonManager = ({ onPersonAdded }: PersonManagerProps) => {
                 />
               </div>
               <div>
+                <Label htmlFor="enrollment">Enrollment No (optional)</Label>
+                <Input
+                  id="enrollment"
+                  value={newPersonEnrollment}
+                  onChange={(e) => setNewPersonEnrollment(e.target.value)}
+                  placeholder="Enter enrollment number"
+                />
+              </div>
+              <div>
                 <Label htmlFor="email">Email (optional)</Label>
                 <Input
                   id="email"
@@ -162,6 +245,15 @@ const PersonManager = ({ onPersonAdded }: PersonManagerProps) => {
                   value={newPersonEmail}
                   onChange={(e) => setNewPersonEmail(e.target.value)}
                   placeholder="Enter email address"
+                />
+              </div>
+              <div>
+                <Label htmlFor="phone">Phone (optional)</Label>
+                <Input
+                  id="phone"
+                  value={newPersonPhone}
+                  onChange={(e) => setNewPersonPhone(e.target.value)}
+                  placeholder="Enter phone number"
                 />
               </div>
               <div className="flex gap-2">
@@ -191,11 +283,17 @@ const PersonManager = ({ onPersonAdded }: PersonManagerProps) => {
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-medium text-foreground">{person.name}</h3>
+                  {person.enrollmentNo && (
+                    <p className="text-sm text-muted-foreground">Enrollment: {person.enrollmentNo}</p>
+                  )}
                   {person.email && (
-                    <p className="text-sm text-muted-foreground">{person.email}</p>
+                    <p className="text-sm text-muted-foreground">Email: {person.email}</p>
+                  )}
+                  {person.phone && (
+                    <p className="text-sm text-muted-foreground">Phone: {person.phone}</p>
                   )}
                   <p className="text-xs text-muted-foreground">
-                    Added: {person.createdAt.toLocaleDateString()}
+                    Added: {person.createdAt?.toLocaleDateString()}
                   </p>
                 </div>
                 <div className="flex gap-2">
@@ -227,11 +325,11 @@ const PersonManager = ({ onPersonAdded }: PersonManagerProps) => {
                 </div>
               </div>
               
-              {showQRCodes[person.id] && (
+              {showQRCodes[person.id] && person.qrCodeData && (
                 <div className="flex justify-center pt-3 border-t">
                   <div className="text-center">
                     <img 
-                      src={person.qrCode} 
+                      src={person.qrCodeData} 
                       alt={`QR Code for ${person.name}`}
                       className="mx-auto mb-2 border rounded-lg"
                       style={{ maxWidth: '200px' }}

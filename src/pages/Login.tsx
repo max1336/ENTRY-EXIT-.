@@ -6,9 +6,10 @@ import { Label } from '@/components/ui/label';
 import { Lock, User, Shield } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/lib/supabase';
 
 const Login = () => {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
@@ -18,25 +19,58 @@ const Login = () => {
     e.preventDefault();
     setIsLoading(true);
 
-    // Simulate login process
-    setTimeout(() => {
-      if (username && password) {
-        localStorage.setItem('isAuthenticated', 'true');
-        localStorage.setItem('username', username);
-        toast({
-          title: 'Welcome!',
-          description: 'Login successful. Redirecting to dashboard...',
+    try {
+      // Check if this is the specific admin login
+      if (email === 'mihir.r.bhavsar1336@gmail.com' && password === 'mihir1336') {
+        // First try to sign in existing user
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
         });
-        navigate('/dashboard');
+
+        if (signInError && signInError.message.includes('Invalid login credentials')) {
+          // User doesn't exist, create them
+          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+            email,
+            password,
+          });
+
+          if (signUpError) {
+            throw signUpError;
+          }
+
+          if (signUpData.user) {
+            toast({
+              title: 'Account Created & Logged In!',
+              description: 'Welcome to Entry Tracker!',
+            });
+            navigate('/dashboard');
+          }
+        } else if (signInError) {
+          throw signInError;
+        } else if (signInData.user) {
+          toast({
+            title: 'Welcome back!',
+            description: 'Login successful. Redirecting to dashboard...',
+          });
+          navigate('/dashboard');
+        }
       } else {
         toast({
-          title: 'Error',
-          description: 'Please enter both username and password.',
+          title: 'Access Denied',
+          description: 'Invalid credentials. Please use the correct email and password.',
           variant: 'destructive',
         });
       }
+    } catch (error: any) {
+      toast({
+        title: 'Login Error',
+        description: error.message || 'Failed to login. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   return (
@@ -64,16 +98,16 @@ const Login = () => {
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="username" className="text-sm font-medium flex items-center gap-2">
+              <Label htmlFor="email" className="text-sm font-medium flex items-center gap-2">
                 <User className="w-4 h-4" />
-                Username
+                Email
               </Label>
               <Input
-                id="username"
-                type="text"
-                placeholder="Enter your username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                id="email"
+                type="email"
+                placeholder="mihir.r.bhavsar1336@gmail.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="h-12 transition-all duration-200 focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 required
               />
@@ -87,7 +121,7 @@ const Login = () => {
               <Input
                 id="password"
                 type="password"
-                placeholder="Enter your password"
+                placeholder="mihir1336"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="h-12 transition-all duration-200 focus:ring-2 focus:ring-primary/20 focus:border-primary"
@@ -113,7 +147,7 @@ const Login = () => {
 
           <div className="mt-8 text-center">
             <p className="text-sm text-muted-foreground">
-              Demo credentials: Any username and password
+              Use: mihir.r.bhavsar1336@gmail.com / mihir1336
             </p>
           </div>
         </CardContent>

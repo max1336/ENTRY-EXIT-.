@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LogIn, LogOut, Clock, Users, TrendingUp, Scan, QrCode } from 'lucide-react';
+import { LogIn, LogOut, Clock, Users, TrendingUp, Scan, QrCode, List } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import PersonManager, { Person } from './PersonManager';
 import QRCodeScanner from './QRCodeScanner';
+import { supabase } from '@/lib/supabase';
 
 interface Entry {
   id: string;
@@ -30,17 +31,44 @@ const EntryExitTracker = () => {
   const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
   const [isManualExitOpen, setIsManualExitOpen] = useState(false);
   const [manualEntryForm, setManualEntryForm] = useState({ name: '', enrollmentNo: '' });
+  const [isAllEntriesOpen, setIsAllEntriesOpen] = useState(false);
+  const [userId, setUserId] = useState<string>('');
   const { toast } = useToast();
 
-  // Load entries from localStorage on component mount
+  // Load entries from Supabase on component mount
   useEffect(() => {
-    const savedEntries = localStorage.getItem('entryExitData');
-    if (savedEntries) {
-      const parsed = JSON.parse(savedEntries);
-      const entriesWithDates = parsed.map((entry: any) => ({
-        ...entry,
-        timestamp: new Date(entry.timestamp)
+    const initializeUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        setUserId(session.user.id);
+        await loadEntries(session.user.id);
+      }
+    };
+
+    initializeUser();
+  }, []);
+
+  const loadEntries = async (currentUserId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('entries')
+        .select('*')
+        .eq('user_id', currentUserId)
+        .order('timestamp', { ascending: false });
+
+      if (error) throw error;
+
+      const entriesWithDates = data.map((entry: any) => ({
+        id: entry.id,
+        type: entry.type,
+        timestamp: new Date(entry.timestamp),
+        person: entry.person_id ? {
+          id: entry.person_id,
+          name: entry.person_name,
+          enrollmentNo: entry.person_enrollment_no
+        } : undefined
       }));
+
       setEntries(entriesWithDates);
       
       // Calculate current count and who's inside
@@ -66,15 +94,43 @@ const EntryExitTracker = () => {
       
       setCurrentPersonInside(peopleInside);
       setCurrentCount(peopleInside.size + Math.max(0, count));
+    } catch (error) {
+      console.error('Error loading entries:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load entries from database',
+        variant: 'destructive',
+      });
     }
-  }, []);
+  };
 
-  // Save entries to localStorage whenever entries change
-  useEffect(() => {
-    localStorage.setItem('entryExitData', JSON.stringify(entries));
-  }, [entries]);
+  // Save entries to Supabase
+  const saveEntryToDatabase = async (entry: Entry) => {
+    try {
+      const { error } = await supabase
+        .from('entries')
+        .insert({
+          id: entry.id,
+          type: entry.type,
+          timestamp: entry.timestamp.toISOString(),
+          person_id: entry.person?.id || null,
+          person_name: entry.person?.name || null,
+          person_enrollment_no: entry.person?.enrollmentNo || null,
+          user_id: userId
+        });
 
-  const addEntry = (type: 'entry' | 'exit', person?: { id: string; name: string; enrollmentNo?: string }) => {
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error saving entry:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to save entry to database',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const addEntry = async (type: 'entry' | 'exit', person?: { id: string; name: string; enrollmentNo?: string }) => {
     const newEntry: Entry = {
       id: Date.now().toString(),
       type,
@@ -83,6 +139,9 @@ const EntryExitTracker = () => {
     };
 
     setEntries(prev => [newEntry, ...prev]);
+    
+    // Save to database
+    await saveEntryToDatabase(newEntry);
     
     // Update current person tracking
     if (person) {
@@ -147,15 +206,30 @@ const EntryExitTracker = () => {
     setIsManualExitOpen(false);
   };
 
-  const clearAllEntries = () => {
-    setEntries([]);
-    setCurrentCount(0);
-    setCurrentPersonInside(new Set());
-    localStorage.removeItem('entryExitData');
-    toast({
-      title: "Data Cleared",
-      description: "All entry/exit records have been cleared",
-    });
+  const clearAllEntries = async () => {
+    try {
+      const { error } = await supabase
+        .from('entries')
+        .delete()
+        .eq('user_id', userId);
+
+      if (error) throw error;
+
+      setEntries([]);
+      setCurrentCount(0);
+      setCurrentPersonInside(new Set());
+      toast({
+        title: "Data Cleared",
+        description: "All entry/exit records have been cleared",
+      });
+    } catch (error) {
+      console.error('Error clearing entries:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to clear entries from database',
+        variant: 'destructive',
+      });
+    }
   };
 
   const todayEntries = entries.filter(entry => 
@@ -209,10 +283,11 @@ const EntryExitTracker = () => {
 
         {/* Main Content Tabs */}
         <Tabs defaultValue="scanner" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="scanner">QR Scanner</TabsTrigger>
             <TabsTrigger value="manual">Manual Entry</TabsTrigger>
             <TabsTrigger value="people">Manage People</TabsTrigger>
+            <TabsTrigger value="entries">All Entries</TabsTrigger>
           </TabsList>
 
           <TabsContent value="scanner" className="space-y-4">
@@ -370,6 +445,73 @@ const EntryExitTracker = () => {
                 description: `${person.name} can now use their QR code for entry/exit`,
               });
             }} />
+          </TabsContent>
+
+          <TabsContent value="entries" className="space-y-4">
+            <Card className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
+                  <List className="w-5 h-5" />
+                  All Entries & Exits
+                </h2>
+                {entries.length > 0 && (
+                  <Button
+                    onClick={clearAllEntries}
+                    variant="outline"
+                    size="sm"
+                  >
+                    Clear All
+                  </Button>
+                )}
+              </div>
+              
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {entries.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <TrendingUp className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                    <p>No entries recorded yet</p>
+                    <p className="text-sm">Start tracking by scanning QR codes or manual entry</p>
+                  </div>
+                ) : (
+                  entries.map((entry) => (
+                    <div
+                      key={entry.id}
+                      className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
+                        entry.type === 'entry'
+                          ? 'bg-entry-muted border-entry/20'
+                          : 'bg-exit-muted border-exit/20'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        {entry.type === 'entry' ? (
+                          <LogIn className={`w-5 h-5 text-entry`} />
+                        ) : (
+                          <LogOut className={`w-5 h-5 text-exit`} />
+                        )}
+                        <div>
+                          <p className={`font-medium ${
+                            entry.type === 'entry' ? 'text-entry' : 'text-exit'
+                          }`}>
+                            {entry.person ? entry.person.name : 'Anonymous'} - {entry.type === 'entry' ? 'Entry' : 'Exit'}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {format(entry.timestamp, 'MMM dd, yyyy')}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-medium text-foreground">
+                          {format(entry.timestamp, 'HH:mm:ss')}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {format(entry.timestamp, 'EEE')}
+                        </p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </Card>
           </TabsContent>
         </Tabs>
 
