@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -15,52 +16,42 @@ const Login = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  useEffect(() => {
+    // Check if user is already logged in
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        navigate('/dashboard');
+      }
+    };
+    checkAuth();
+  }, [navigate]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
-      // Check if this is the specific admin login
-      if (email === 'mihir.r.bhavsar1336@gmail.com' && password === 'mihir1336') {
-        // First try to sign in existing user
-        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-        if (signInError && signInError.message.includes('Invalid login credentials')) {
-          // User doesn't exist, create them
-          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-            email,
-            password,
-          });
-
-          if (signUpError) {
-            throw signUpError;
-          }
-
-          if (signUpData.user) {
-            toast({
-              title: 'Account Created & Logged In!',
-              description: 'Welcome to Entry Tracker!',
-            });
-            navigate('/dashboard');
-          }
-        } else if (signInError) {
-          throw signInError;
-        } else if (signInData.user) {
-          toast({
-            title: 'Welcome back!',
-            description: 'Login successful. Redirecting to dashboard...',
-          });
-          navigate('/dashboard');
-        }
-      } else {
+      if (error) {
         toast({
-          title: 'Access Denied',
-          description: 'Invalid credentials. Please use the correct email and password.',
+          title: 'Login Failed',
+          description: error.message,
           variant: 'destructive',
         });
+        return;
+      }
+
+      if (data.user) {
+        toast({
+          title: 'Welcome back!',
+          description: 'Login successful. Redirecting to dashboard...',
+        });
+        navigate('/dashboard');
       }
     } catch (error: any) {
       toast({
@@ -147,7 +138,7 @@ const Login = () => {
 
           <div className="mt-8 text-center">
             <p className="text-sm text-muted-foreground">
-              Use: mihir.r.bhavsar1336@gmail.com / mihir1336
+              Enter your email and password to sign in
             </p>
           </div>
         </CardContent>

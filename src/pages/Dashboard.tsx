@@ -28,6 +28,8 @@ const Dashboard = () => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT' || !session) {
         navigate('/');
+      } else if (session) {
+        setUserEmail(session.user.email || '');
       }
     });
 
