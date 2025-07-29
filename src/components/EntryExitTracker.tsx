@@ -10,7 +10,8 @@ import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import PersonManager, { Person } from './PersonManager';
 import QRCodeScanner from './QRCodeScanner';
-import { supabase } from '@/lib/supabase';
+import { googleSheetsDB } from '@/lib/googleSheets';
+import { authService } from '@/lib/auth';
 
 interface Entry {
   id: string;
@@ -37,11 +38,11 @@ const EntryExitTracker = () => {
 
   // Load entries from Supabase on component mount
   useEffect(() => {
-    const initializeUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        setUserId(session.user.id);
-        await loadEntries(session.user.id);
+    const initializeUser = () => {
+      const user = authService.getCurrentUser();
+      if (user) {
+        setUserId(user.id);
+        loadEntries(user.id);
       }
     };
 
@@ -50,25 +51,22 @@ const EntryExitTracker = () => {
 
   const loadEntries = async (currentUserId: string) => {
     try {
-      const { data, error } = await supabase
-        .from('entries')
-        .select('*')
-        .eq('user_id', currentUserId)
-        .order('timestamp', { ascending: false });
-
-      if (error) throw error;
-
-      const entriesWithDates = data.map((entry: any) => ({
-        id: entry.id,
+      const sheetEntries = await googleSheetsDB.getEntries(currentUserId);
+      
+      const entriesWithDates = sheetEntries.map((entry) => ({
+        id: `${entry.timestamp}_${entry.personId}`,
         type: entry.type,
         timestamp: new Date(entry.timestamp),
-        person: entry.person_id ? {
-          id: entry.person_id,
-          name: entry.person_name,
-          enrollmentNo: entry.person_enrollment_no
+        person: entry.personId ? {
+          id: entry.personId,
+          name: entry.personName,
+          enrollmentNo: entry.enrollmentNo
         } : undefined
       }));
 
+      // Sort by timestamp descending
+      entriesWithDates.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+      
       setEntries(entriesWithDates);
       
       // Calculate current count and who's inside
@@ -98,33 +96,28 @@ const EntryExitTracker = () => {
       console.error('Error loading entries:', error);
       toast({
         title: 'Error',
-        description: 'Failed to load entries from database',
+        description: 'Failed to load entries from Google Sheets',
         variant: 'destructive',
       });
     }
   };
 
-  // Save entries to Supabase
+  // Save entries to Google Sheets
   const saveEntryToDatabase = async (entry: Entry) => {
     try {
-      const { error } = await supabase
-        .from('entries')
-        .insert({
-          id: entry.id,
-          type: entry.type,
-          timestamp: entry.timestamp.toISOString(),
-          person_id: entry.person?.id || null,
-          person_name: entry.person?.name || null,
-          person_enrollment_no: entry.person?.enrollmentNo || null,
-          user_id: userId
-        });
-
-      if (error) throw error;
+      await googleSheetsDB.addEntry({
+        timestamp: entry.timestamp.toISOString(),
+        type: entry.type,
+        personName: entry.person?.name || '',
+        personId: entry.person?.id || '',
+        enrollmentNo: entry.person?.enrollmentNo || '',
+        userId: userId
+      });
     } catch (error) {
       console.error('Error saving entry:', error);
       toast({
         title: 'Error',
-        description: 'Failed to save entry to database',
+        description: 'Failed to save entry to Google Sheets',
         variant: 'destructive',
       });
     }
@@ -208,12 +201,7 @@ const EntryExitTracker = () => {
 
   const clearAllEntries = async () => {
     try {
-      const { error } = await supabase
-        .from('entries')
-        .delete()
-        .eq('user_id', userId);
-
-      if (error) throw error;
+      await googleSheetsDB.clearEntries(userId);
 
       setEntries([]);
       setCurrentCount(0);
@@ -226,7 +214,7 @@ const EntryExitTracker = () => {
       console.error('Error clearing entries:', error);
       toast({
         title: 'Error',
-        description: 'Failed to clear entries from database',
+        description: 'Failed to clear entries from Google Sheets',
         variant: 'destructive',
       });
     }

@@ -7,7 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import QRCode from 'qrcode';
-import { supabase } from '@/lib/supabase';
+import { googleSheetsDB } from '@/lib/googleSheets';
+import { authService } from '@/lib/auth';
 
 export interface Person {
   id: string;
@@ -36,11 +37,11 @@ const PersonManager = ({ onPersonAdded }: PersonManagerProps) => {
 
   // Load people from Supabase
   useEffect(() => {
-    const initializeUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        setUserId(session.user.id);
-        await loadPeople(session.user.id);
+    const initializeUser = () => {
+      const user = authService.getCurrentUser();
+      if (user) {
+        setUserId(user.id);
+        loadPeople(user.id);
       }
     };
 
@@ -49,30 +50,27 @@ const PersonManager = ({ onPersonAdded }: PersonManagerProps) => {
 
   const loadPeople = async (currentUserId: string) => {
     try {
-      const { data, error } = await supabase
-        .from('people')
-        .select('*')
-        .eq('user_id', currentUserId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      const peopleData = data.map((person: any) => ({
+      const sheetPeople = await googleSheetsDB.getPeople(currentUserId);
+      
+      const peopleData = sheetPeople.map((person) => ({
         id: person.id,
         name: person.name,
-        enrollmentNo: person.enrollment_no,
+        enrollmentNo: person.enrollmentNo,
         email: person.email,
         phone: person.phone,
-        qrCodeData: person.qr_code_data,
-        createdAt: new Date(person.created_at)
+        qrCodeData: person.qrCodeData,
+        createdAt: new Date(person.createdAt)
       }));
 
+      // Sort by created date descending
+      peopleData.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      
       setPeople(peopleData);
     } catch (error) {
       console.error('Error loading people:', error);
       toast({
         title: 'Error',
-        description: 'Failed to load people from database',
+        description: 'Failed to load people from Google Sheets',
         variant: 'destructive',
       });
     }
@@ -111,31 +109,26 @@ const PersonManager = ({ onPersonAdded }: PersonManagerProps) => {
         }
       });
 
-      // Save to Supabase
-      const { data, error } = await supabase
-        .from('people')
-        .insert({
-          id: personId,
-          name: newPersonName.trim(),
-          enrollment_no: newPersonEnrollment.trim() || null,
-          email: newPersonEmail.trim() || null,
-          phone: newPersonPhone.trim() || null,
-          qr_code_data: qrCodeDataURL,
-          user_id: userId
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
+      // Save to Google Sheets
+      await googleSheetsDB.addPerson({
+        id: personId,
+        name: newPersonName.trim(),
+        enrollmentNo: newPersonEnrollment.trim(),
+        email: newPersonEmail.trim(),
+        phone: newPersonPhone.trim(),
+        qrCodeData: qrCodeDataURL,
+        userId: userId,
+        createdAt: new Date().toISOString()
+      });
 
       const newPerson: Person = {
-        id: data.id,
-        name: data.name,
-        enrollmentNo: data.enrollment_no,
-        email: data.email,
-        phone: data.phone,
-        qrCodeData: data.qr_code_data,
-        createdAt: new Date(data.created_at)
+        id: personId,
+        name: newPersonName.trim(),
+        enrollmentNo: newPersonEnrollment.trim() || undefined,
+        email: newPersonEmail.trim() || undefined,
+        phone: newPersonPhone.trim() || undefined,
+        qrCodeData: qrCodeDataURL,
+        createdAt: new Date()
       };
 
       setPeople(prev => [...prev, newPerson]);
@@ -155,7 +148,7 @@ const PersonManager = ({ onPersonAdded }: PersonManagerProps) => {
       console.error('Error adding person:', error);
       toast({
         title: "Error",
-        description: "Failed to add person to database",
+        description: "Failed to add person to Google Sheets",
         variant: "destructive"
       });
     }
@@ -163,13 +156,7 @@ const PersonManager = ({ onPersonAdded }: PersonManagerProps) => {
 
   const deletePerson = async (personId: string) => {
     try {
-      const { error } = await supabase
-        .from('people')
-        .delete()
-        .eq('id', personId)
-        .eq('user_id', userId);
-
-      if (error) throw error;
+      await googleSheetsDB.deletePerson(personId, userId);
 
       const person = people.find(p => p.id === personId);
       setPeople(prev => prev.filter(p => p.id !== personId));
@@ -181,7 +168,7 @@ const PersonManager = ({ onPersonAdded }: PersonManagerProps) => {
       console.error('Error deleting person:', error);
       toast({
         title: 'Error',
-        description: 'Failed to delete person from database',
+        description: 'Failed to delete person from Google Sheets',
         variant: 'destructive',
       });
     }
