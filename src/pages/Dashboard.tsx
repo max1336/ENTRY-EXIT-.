@@ -4,39 +4,37 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { LogOut, User, Shield } from 'lucide-react';
 import EntryExitTracker from '@/components/EntryExitTracker';
-import { authService, User as UserType } from '@/lib/auth';
 import { googleSheetsDB } from '@/lib/googleSheets';
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const [user, setUser] = useState<UserType | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is logged in
-    const currentUser = authService.getCurrentUser();
-    
-    if (!currentUser) {
-      navigate('/');
-      return;
-    }
-    
-    setUser(currentUser);
-    
     // Initialize Google Sheets
-    googleSheetsDB.initializeSheets().catch(console.error);
-  }, [navigate]);
+    const initializeApp = async () => {
+      try {
+        await googleSheetsDB.initializeSheets();
+      } catch (error) {
+        console.error('Error initializing Google Sheets:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-  const handleLogout = () => {
-    authService.logout();
+    initializeApp();
+  }, []);
+
+  const handleBackToLogin = () => {
     navigate('/');
   };
 
-  if (!user) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background via-accent/5 to-primary/5 flex items-center justify-center">
         <div className="text-center">
           <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin mx-auto mb-4"></div>
-          <p>Loading...</p>
+          <p>Initializing Google Sheets connection...</p>
         </div>
       </div>
     );
@@ -60,16 +58,16 @@ const Dashboard = () => {
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <User className="w-4 h-4" />
-                <span>Welcome, {user.name}</span>
+                <span>Google Sheets Database</span>
               </div>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleLogout}
+                onClick={handleBackToLogin}
                 className="flex items-center gap-2 hover:bg-destructive hover:text-destructive-foreground transition-colors"
               >
                 <LogOut className="w-4 h-4" />
-                Logout
+                Back to Login
               </Button>
             </div>
           </div>
@@ -85,10 +83,17 @@ const Dashboard = () => {
               <CardTitle className="text-2xl">Welcome to Entry Tracker</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground">
+              <p className="text-muted-foreground mb-4">
                 Manage people registration and track entry/exit activities with QR code scanning.
                 All data is automatically saved to your Google Sheets database.
               </p>
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <h4 className="font-semibold text-yellow-800 mb-2">Setup Required:</h4>
+                <p className="text-yellow-700 text-sm">
+                  Make sure you have configured your Google Sheets API credentials in the .env file. 
+                  Check the GOOGLE_SHEETS_SETUP.md file for detailed setup instructions.
+                </p>
+              </div>
             </CardContent>
           </Card>
 

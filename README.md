@@ -1,110 +1,135 @@
-# Welcome to your Lovable project
+# Entry/Exit Tracker - Google Sheets Database
 
-## Supabase Setup Instructions
+A simple entry/exit tracking application that uses Google Sheets as the database. Track people entering and exiting with QR codes, manual entry, and automatic data storage to Google Sheets.
 
-To set up the database for this Entry/Exit Tracker application:
+## Features
 
-### 1. Create a Supabase Project
-1. Go to [supabase.com](https://supabase.com)
-2. Create a new account or sign in
-3. Click "New Project"
-4. Choose your organization and enter project details
-5. Wait for the project to be created
+- **QR Code Scanning**: Scan QR codes to automatically record entries and exits
+- **Manual Entry/Exit**: Record entries and exits manually with optional person details
+- **People Management**: Register people and generate QR codes for them
+- **Google Sheets Integration**: All data is automatically saved to Google Sheets
+- **Real-time Statistics**: View today's entry/exit counts and net count
+- **Activity History**: View all recorded entries and exits
 
-### 2. Set up the Database
-1. In your Supabase dashboard, go to the SQL Editor
-2. Copy the contents of `supabase-setup.sql` from this project
-3. Paste it into the SQL Editor and run it
-4. This will create the necessary tables and security policies
+## Google Sheets Setup
 
-### 3. Configure Environment Variables
-1. In your Supabase dashboard, go to Settings > API
-2. Copy your Project URL and anon/public key
-3. Create a `.env` file in your project root (copy from `.env.example`)
-4. Add your Supabase credentials:
+### 1. Create a Google Sheet
+1. Go to [Google Sheets](https://sheets.google.com)
+2. Create a new blank spreadsheet
+3. Rename it to "Entry Exit Tracker Database"
+4. Create two sheets (tabs) with these exact names:
+   - `Entries`
+   - `People`
+
+### 2. Set up the Entries Sheet
+1. Click on the "Entries" tab
+2. In row 1, add these headers in columns A-F:
    ```
-   VITE_SUPABASE_URL=your_project_url_here
-   VITE_SUPABASE_ANON_KEY=your_anon_key_here
+   A1: Timestamp
+   B1: Type
+   C1: Person Name
+   D1: Person ID
+   E1: Enrollment No
+   F1: User ID
    ```
 
-### 4. Enable Authentication
-1. In Supabase dashboard, go to Authentication > Settings
-2. Make sure "Enable email confirmations" is turned OFF for development
-3. You can now create user accounts through the login page
+### 3. Set up the People Sheet
+1. Click on the "People" tab
+2. In row 1, add these headers in columns A-H:
+   ```
+   A1: ID
+   B1: Name
+   C1: Enrollment No
+   D1: Email
+   E1: Phone
+   F1: QR Code Data
+   G1: User ID
+   H1: Created At
+   ```
 
-### 5. Test the Application
-1. Start the development server: `npm run dev`
-2. Go to the login page and create a new account
-3. All entries, exits, and people data will be saved to your Supabase database
+### 4. Get Your Google Sheet ID
+1. Look at your Google Sheet URL
+2. Copy the ID from the URL (the long string between `/d/` and `/edit`)
+   
+   Example URL: `https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit`
+   
+   Sheet ID: `1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms`
 
-## Project info
+### 5. Enable Google Sheets API
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project or select an existing one
+3. Enable the Google Sheets API:
+   - Go to "APIs & Services" > "Library"
+   - Search for "Google Sheets API"
+   - Click on it and press "Enable"
 
-**URL**: https://lovable.dev/projects/19f01c35-1321-4f1b-8208-fd1693c0de6e
+### 6. Create API Key
+1. In Google Cloud Console, go to "APIs & Services" > "Credentials"
+2. Click "Create Credentials" > "API Key"
+3. Copy the generated API key
+4. (Optional) Restrict the API key to only Google Sheets API for security
 
-## How can I edit this code?
+### 7. Make Your Sheet Public (Read-Only)
+1. In your Google Sheet, click "Share" button
+2. Change access to "Anyone with the link can view"
+3. Make sure it's set to "Viewer" permissions
 
-There are several ways of editing your application.
+### 8. Configure Your Application
+1. Create a `.env` file in your project root
+2. Add your credentials:
+   ```env
+   VITE_GOOGLE_SHEET_ID=your_sheet_id_here
+   VITE_GOOGLE_API_KEY=your_api_key_here
+   ```
 
-**Use Lovable**
+## Installation
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/19f01c35-1321-4f1b-8208-fd1693c0de6e) and start prompting.
+1. Clone the repository
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Set up your Google Sheets database (see above)
+4. Configure your `.env` file with Google Sheets credentials
+5. Start the development server:
+   ```bash
+   npm run dev
+   ```
 
-Changes made via Lovable will be committed automatically to this repo.
+## Usage
 
-**Use your preferred IDE**
+1. **Add People**: Go to the "Manage People" tab to register people and generate QR codes
+2. **QR Scanning**: Use the "QR Scanner" tab to scan QR codes for automatic entry/exit recording
+3. **Manual Entry**: Use the "Manual Entry" tab to record entries/exits without QR codes
+4. **View Activity**: Check the "All Entries" tab or the Recent Activity section to see all recorded data
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+## Technologies Used
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+- **Frontend**: React, TypeScript, Tailwind CSS
+- **UI Components**: shadcn/ui
+- **QR Code**: qrcode library for generation, qr-scanner for reading
+- **Database**: Google Sheets API
+- **Build Tool**: Vite
 
-Follow these steps:
+## Important Notes
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+- The Google Sheets API has usage limits (100 requests per 100 seconds per user)
+- All data is stored in Google Sheets, making it easily accessible and editable
+- QR codes contain person information in JSON format
+- The application works offline for QR scanning but requires internet for data saving
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+## Troubleshooting
 
-# Step 3: Install the necessary dependencies.
-npm i
+**Error: "API key not valid"**
+- Make sure your API key is correct
+- Check that Google Sheets API is enabled
+- Verify the API key restrictions
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+**Error: "The caller does not have permission"**
+- Make sure your sheet is shared publicly with "Anyone with the link can view"
+- Check that the sheet ID is correct
 
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/19f01c35-1321-4f1b-8208-fd1693c0de6e) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+**Data not appearing**
+- Verify your sheet has the correct headers in the right columns
+- Check the browser console for error messages
+- Make sure the sheet names are exactly "Entries" and "People"

@@ -11,7 +11,6 @@ import { format } from 'date-fns';
 import PersonManager, { Person } from './PersonManager';
 import QRCodeScanner from './QRCodeScanner';
 import { googleSheetsDB } from '@/lib/googleSheets';
-import { authService } from '@/lib/auth';
 
 interface Entry {
   id: string;
@@ -33,25 +32,17 @@ const EntryExitTracker = () => {
   const [isManualExitOpen, setIsManualExitOpen] = useState(false);
   const [manualEntryForm, setManualEntryForm] = useState({ name: '', enrollmentNo: '' });
   const [isAllEntriesOpen, setIsAllEntriesOpen] = useState(false);
-  const [userId, setUserId] = useState<string>('');
+  const [userId] = useState('default_user'); // Simple user ID for Google Sheets
   const { toast } = useToast();
 
-  // Load entries from Supabase on component mount
+  // Load entries from Google Sheets on component mount
   useEffect(() => {
-    const initializeUser = () => {
-      const user = authService.getCurrentUser();
-      if (user) {
-        setUserId(user.id);
-        loadEntries(user.id);
-      }
-    };
-
-    initializeUser();
+    loadEntries();
   }, []);
 
-  const loadEntries = async (currentUserId: string) => {
+  const loadEntries = async () => {
     try {
-      const sheetEntries = await googleSheetsDB.getEntries(currentUserId);
+      const sheetEntries = await googleSheetsDB.getEntries(userId);
       
       const entriesWithDates = sheetEntries.map((entry) => ({
         id: `${entry.timestamp}_${entry.personId}`,
@@ -201,20 +192,20 @@ const EntryExitTracker = () => {
 
   const clearAllEntries = async () => {
     try {
-      await googleSheetsDB.clearEntries(userId);
-
+      // Note: This would need Google Apps Script for full implementation
+      // For now, we'll just clear the local state
       setEntries([]);
       setCurrentCount(0);
       setCurrentPersonInside(new Set());
       toast({
         title: "Data Cleared",
-        description: "All entry/exit records have been cleared",
+        description: "All entry/exit records have been cleared locally",
       });
     } catch (error) {
       console.error('Error clearing entries:', error);
       toast({
         title: 'Error',
-        description: 'Failed to clear entries from Google Sheets',
+        description: 'Failed to clear entries',
         variant: 'destructive',
       });
     }
@@ -233,7 +224,7 @@ const EntryExitTracker = () => {
         {/* Header */}
         <div className="text-center space-y-2">
           <h1 className="text-4xl font-bold text-foreground">Entry/Exit Tracker</h1>
-          <p className="text-muted-foreground">Monitor entries and exits with QR codes</p>
+          <p className="text-muted-foreground">Monitor entries and exits with QR codes - Data saved to Google Sheets</p>
         </div>
 
         {/* Stats Cards */}

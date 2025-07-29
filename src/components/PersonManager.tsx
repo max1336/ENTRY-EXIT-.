@@ -8,7 +8,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useToast } from '@/hooks/use-toast';
 import QRCode from 'qrcode';
 import { googleSheetsDB } from '@/lib/googleSheets';
-import { authService } from '@/lib/auth';
 
 export interface Person {
   id: string;
@@ -32,25 +31,17 @@ const PersonManager = ({ onPersonAdded }: PersonManagerProps) => {
   const [newPersonEnrollment, setNewPersonEnrollment] = useState('');
   const [newPersonPhone, setNewPersonPhone] = useState('');
   const [showQRCodes, setShowQRCodes] = useState<{[key: string]: boolean}>({});
-  const [userId, setUserId] = useState<string>('');
+  const [userId] = useState('default_user'); // Simple user ID for Google Sheets
   const { toast } = useToast();
 
-  // Load people from Supabase
+  // Load people from Google Sheets
   useEffect(() => {
-    const initializeUser = () => {
-      const user = authService.getCurrentUser();
-      if (user) {
-        setUserId(user.id);
-        loadPeople(user.id);
-      }
-    };
-
-    initializeUser();
+    loadPeople();
   }, []);
 
-  const loadPeople = async (currentUserId: string) => {
+  const loadPeople = async () => {
     try {
-      const sheetPeople = await googleSheetsDB.getPeople(currentUserId);
+      const sheetPeople = await googleSheetsDB.getPeople(userId);
       
       const peopleData = sheetPeople.map((person) => ({
         id: person.id,
