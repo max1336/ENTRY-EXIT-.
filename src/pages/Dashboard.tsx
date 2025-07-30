@@ -9,14 +9,19 @@ import { googleSheetsDB } from '@/lib/googleSheets';
 const Dashboard = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     // Initialize Google Sheets
     const initializeApp = async () => {
       try {
+        console.log('Starting Google Sheets initialization...');
         await googleSheetsDB.initializeSheets();
+        console.log('Google Sheets initialization completed');
+        setError(null);
       } catch (error) {
         console.error('Error initializing Google Sheets:', error);
+        setError(error instanceof Error ? error.message : 'Failed to connect to Google Sheets');
       } finally {
         setIsLoading(false);
       }
@@ -34,7 +39,37 @@ const Dashboard = () => {
       <div className="min-h-screen bg-gradient-to-br from-background via-accent/5 to-primary/5 flex items-center justify-center">
         <div className="text-center">
           <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin mx-auto mb-4"></div>
-          <p>Initializing Google Sheets connection...</p>
+          <p className="text-lg font-medium">Connecting to Google Sheets...</p>
+          <p className="text-sm text-muted-foreground mt-2">Please wait while we establish the connection</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background via-accent/5 to-primary/5 flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto p-6">
+          <div className="w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Shield className="w-8 h-8 text-destructive" />
+          </div>
+          <h2 className="text-xl font-bold text-foreground mb-2">Connection Error</h2>
+          <p className="text-muted-foreground mb-4">{error}</p>
+          <div className="space-y-2 text-sm text-left bg-muted p-4 rounded-lg">
+            <p className="font-medium">Please check:</p>
+            <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+              <li>Your Google Sheets API key is valid</li>
+              <li>The Google Sheet ID is correct</li>
+              <li>The sheet is shared publicly (Anyone with link can view)</li>
+              <li>The sheet has "Entries" and "People" tabs</li>
+            </ul>
+          </div>
+          <Button 
+            onClick={() => window.location.reload()} 
+            className="mt-4"
+          >
+            Try Again
+          </Button>
         </div>
       </div>
     );
